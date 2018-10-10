@@ -3,22 +3,11 @@ import torch
 import torch.utils.data
 from torch import nn
 from torch.nn import functional as F
-from conf.pytorch.config import feature_config, num_speakers
+from conf.pytorch.config import num_speakers
 
-input_dim = feature_config['dim']
-input_type = feature_config['type']
-
-if input_type == 'log_spectrogram' or input_type == 'spectrogram':
-    hidden_dim = 256
-    latent_dim = 64
-elif input_type == 'mcep' or input_type == 'mfcc':
-    hidden_dim = 64
-    latent_dim = 32
-else:
-    print('Unknown input type')
-    hidden_dim = 64
-    latent_dim = 32
-
+input_dim = 59
+hidden_dim = 64
+latent_dim = 32
 
 class VaeMlp(nn.Module):
     def __init__(self):
@@ -46,6 +35,7 @@ class VaeMlp(nn.Module):
             return mu
 
     def condition_label(self, z, label):
+        label = torch.squeeze(label)
         z = torch.cat((z, label), dim=1)
         return z
 

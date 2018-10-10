@@ -9,10 +9,9 @@ from src.dataset.data_loader import FrameDataLoader
 from src.dataset.transform import Compose, LogTransform, Normalization
 from src.utils.model_io import save_checkpoint
 from src.utils.pitch import build_pitch_model, pitch_conversion
-from config.config import feature_config
-from src.dataset.speech_process_tools import speechSynthesis
 import soundfile as sf
 import os
+from src.dataset.dataset_utils import *
 import numpy as np
 
 
@@ -20,22 +19,18 @@ def test(model, device, test_dataset, args):
     model.eval()
     with torch.no_grad():
         for i in range(len(test_dataset)):
-            sample, label, result_path = test_dataset[i]
-            data = sample[feature_config['type']]
-            data = torch.from_numpy(data)
-            label = label.repeat(data.shape[0], 1)
-            data = data.to(device)
+            feat, label, orig_feat, result_path = test_dataset[i]
+            feat = torch.from_numpy(feat)
+            label = label.repeat(feat.shape[0], 0)
+            label = torch.from_numpy(label)
+            feat = feat.to(device)
             label = label.to(device)
-            conv_spectrogram, _, _ = model(data, label)
-            conv_spectrogram = conv_spectrogram.cpu().numpy()
-            norm = sample['norm']
-            conv_spectrogram = np.multiply(conv_spectrogram, norm[:, np.newaxis])
-            conv_f0 = pitch_conversion(sample['f0'], args.src_pitch_model, args.tgt_pitch_model)
-            conv_sample = sample
-            conv_sample[feature_config['type']] = conv_spectrogram
-            conv_sample['f0'] = conv_f0
-            conv_wav = speechSynthesis(conv_sample)
-            sf.write(result_path, conv_wav, conv_sample['fs'])
+            conv_feat, _, _ = model(feat, label)
+            conv_feat = conv_feat.cpu().numpy()
+            conv_feat = np.hstack([orig_feat[:, 0].reshape(orig_feat.shape[0], 1), conv_feat])
+            conv_feat = test_dataset.undo_mvn(conv_feat)
+            write_binfile(conv_feat, result_path)
+
 
 
 if __name__ == '__main__':
@@ -53,7 +48,7 @@ if __name__ == '__main__':
                         help='how many batches to wait before logging training status')
     parser.add_argument('--dataset', type=str, default='Arctic', metavar='D',
                         help='the dataset used for the experiment')
-    parser.add_argument('--feature_type', type=str, default='spectrogram', metavar='F',
+    parser.add_argument('--feature_type', type=str, default='mgc', metavar='F',
                         help='the feature type used for the experiment')
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -69,12 +64,8 @@ if __name__ == '__main__':
         args.model_dir = './exp/arctic/model'
     check_point = torch.load(os.path.join(args.model_dir, 'model_10.pth'))
 
-    train_dataset = Arctic('train', feature_type=args.feature_type, speakers=['bdl', 'rms'], utt_index=[i for i in range(1, 101)])
-    args.src_pitch_model = build_pitch_model(train_dataset, 'bdl')
-    args.tgt_pitch_model = build_pitch_model(train_dataset, 'bdl')
-
     test_dataset = Arctic('test', feature_type=args.feature_type, speakers=['bdl', 'rms'], src_speaker='bdl', tgt_speaker='bdl',
-                          utt_index=[i for i in range(501, 551)],  transform=Compose([Normalization(False)]))
+                          utt_index=[i for i in range(251, 301)],  transform=None, use_mvn=True)
 
     model = VaeMlp().to(device)
     model.load_state_dict(check_point['state_dict'])

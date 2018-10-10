@@ -14,7 +14,7 @@ fi
 current_working_dir=$(pwd)
 merlin_dir=$(dirname $(dirname $(dirname $current_working_dir)))
 experiments_dir=${current_working_dir}/experiments
-data_dir=${current_working_dir}/database
+data_dir=${current_working_dir}/dataset/arctic
 
 src_speaker=$1
 tgt_speaker=$2
@@ -30,8 +30,12 @@ tgt_acoustic_dir=${tgt_voice_dir}/acoustic_model
 synthesis_dir=${tgt_voice_dir}/test_synthesis
 
 mkdir -p ${data_dir}
-mkdir -p ${data_dir}/$src_speaker
-mkdir -p ${data_dir}/$tgt_speaker
+mkdir -p ${data_dir}/wav
+mkdir -p ${data_dir}/wav/$src_speaker
+mkdir -p ${data_dir}/wav/$tgt_speaker
+mkdir -p ${data_dir}/feature
+mkdir -p ${data_dir}/feature/$src_speaker
+mkdir -p ${data_dir}/feature/$tgt_speaker
 
 mkdir -p ${experiments_dir}
 mkdir -p ${src_voice_dir}

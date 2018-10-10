@@ -3,7 +3,7 @@ import torch
 import torch.utils.data
 from torch import nn
 from torch.nn import functional as F
-from config.config import feature_config, num_speakers
+from conf.pytorch.config import feature_config, num_speakers
 
 input_dim = feature_config['dim']
 input_type = feature_config['type']

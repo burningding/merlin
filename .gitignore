@@ -26,4 +26,4 @@ tools/
 **.**~
 
 # Pytorch files
-**/**.pth
+**.pth

@@ -18,8 +18,8 @@ def train(epoch, model, device, optimizer, train_loader, args):
         data = data.to(device)
         label = label.to(device)
         optimizer.zero_grad()
-        recon_batch, mu, logvar = model(data, label)
-        loss = vae_loss_function(recon_batch, data, mu, logvar)
+        px, x, mu, logvar = model(data, label)
+        loss = vae_loss_function(px, data, mu, logvar)
         loss.backward()
         train_loss += loss.item()
         optimizer.step()
@@ -45,8 +45,8 @@ def test(epoch, model, device, test_loader):
         for i, (data, label) in enumerate(test_loader):
             data = data.to(device)
             label = label.to(device)
-            recon_batch, mu, logvar = model(data, label)
-            test_loss += vae_loss_function(recon_batch, data, mu, logvar).item()
+            px, x, mu, logvar = model(data, label)
+            test_loss += vae_loss_function(px, data, mu, logvar).item()
 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
@@ -57,7 +57,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='VAE for VC')
     parser.add_argument('--batch-size', type=int, default=1024, metavar='N',
                         help='input batch size for training (default: 128)')
-    parser.add_argument('--epochs', type=int, default=10, metavar='N',
+    parser.add_argument('--epochs', type=int, default=20, metavar='N',
                         help='number of epochs to train (default: 10)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='enables CUDA training')
@@ -84,11 +84,11 @@ if __name__ == '__main__':
 
     train_loader = DataLoader(
         Arctic('train', feature_type=args.feature_type, speakers=['bdl', 'slt'], utt_index=[i for i in range(1, 251)],
-               transform=None, use_mvn=False),
+               transform=None, use_mvn=True),
         batch_size=args.batch_size, shuffle=True, **kwargs)
     test_loader = DataLoader(
         Arctic('val', feature_type=args.feature_type, speakers=['bdl', 'slt'], utt_index=[i for i in range(251, 301)],
-               transform=None, use_mvn=False),
+               transform=None, use_mvn=True),
         batch_size=args.batch_size, shuffle=True, **kwargs)
 
     model = VaeMlp().to(device)

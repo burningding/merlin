@@ -25,7 +25,7 @@ def test(model, device, test_dataset, args):
             label = torch.from_numpy(label)
             feat = feat.to(device)
             label = label.to(device)
-            conv_feat, _, _ = model(feat, label)
+            _, _, conv_feat, _ = model(feat, label)
             conv_feat = conv_feat.cpu().numpy()
             conv_feat = np.hstack([orig_feat[:, 0].reshape(orig_feat.shape[0], 1), conv_feat])
             conv_feat = test_dataset.undo_mvn(conv_feat)
@@ -62,7 +62,7 @@ if __name__ == '__main__':
 
     if args.dataset == 'Arctic':
         args.model_dir = './exp/arctic/model'
-    check_point = torch.load(os.path.join(args.model_dir, 'model_10.pth'))
+    check_point = torch.load(os.path.join(args.model_dir, 'model_18.pth'))
 
     test_dataset = Arctic('test', feature_type=args.feature_type, speakers=['bdl', 'rms'], src_speaker='bdl', tgt_speaker='bdl',
                           utt_index=[i for i in range(251, 301)],  transform=None, use_mvn=True)

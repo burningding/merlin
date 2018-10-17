@@ -12,25 +12,19 @@ class SpeechDB(Dataset):
     """
     base dataset for speech data
     """
-    def __init__(self, split, use_mvn):
+    def __init__(self, split, dataset_path, exp_path, use_mvn=False, feature_type=None, feature_dim=None):
         self._split = split
+        self._dataset_path = dataset_path
+        self._exp_path = exp_path
+        self._feature_type = feature_type if feature_type else 'mgc'
+        self._feature_dim = feature_dim if feature_dim else 60
         self._wav_index = []
         self._speech_db = []
-        self._feature_dim = 0
         self._mvn_params_path = ''
         self._use_mvn = use_mvn
         self._mvn_params = None
 
-    def speaker_data_path(self, speaker):
-        raise NotImplementedError
-
-    def speaker_feature_path(self, speaker):
-        raise NotImplementedError
-
-    def wav_path_from_index(self, speaker, index, sep='a'):
-        raise NotImplementedError
-
-    def wav_path_at(self, i):
+    def speaker_feat_path(self, speaker):
         raise NotImplementedError
 
     def feat_path_from_index(self, speaker, index, sep='a'):
@@ -42,6 +36,12 @@ class SpeechDB(Dataset):
     def speaker_pitch_path(self, speaker):
         raise NotImplementedError
 
+    def pitch_path_from_index(self, speaker, index, sep='a'):
+        raise NotImplementedError
+
+    def pitch_path_at(self, i):
+        raise NotImplementedError
+
     def speaker_result_path(self):
         raise NotImplementedError
 
@@ -51,26 +51,25 @@ class SpeechDB(Dataset):
     def result_path_at(self, i):
         raise NotImplementedError
 
-    def _get_default_data_path(self):
-        raise NotImplementedError
-
     def _get_default_feature_path(self):
         raise NotImplementedError
 
-    def _get_default_pitch_path(self):
+    def _get_default_result_path(self):
+        raise NotImplementedError
+
+    def _get_default_mvn_params_path(self):
         raise NotImplementedError
 
     def _get_index_from_split(self):
         raise NotImplementedError
 
-    def _load_feature(self, index):
-        feat_fname = self.feat_path_at(index)
-        return self.read_binfile(feat_fname)
+    def _get_input_len(self):
+        raise NotImplementedError
 
     def _generate_speech_db(self):
         raise NotImplementedError
 
-    def _speaker_to_one_hot(self, speaker):
+    def _get_input_list(self):
         raise NotImplementedError
 
     def build_pitch_model(self, speaker):

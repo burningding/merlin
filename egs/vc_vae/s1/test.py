@@ -20,32 +20,34 @@ from src.utils.logger import *
 
 def test(model, device, test_dataset, args):
     model.eval()
-    with torch.no_grad():
-        for i in range(len(test_dataset)):
-            feat, label, orig_feat, result_path = test_dataset[i]
-            feat = torch.from_numpy(feat)
-            label = label.repeat(feat.shape[0], 0)
-            label = torch.from_numpy(label)
-            feat = feat.to(device)
-            label = label.to(device)
-            px, _, _, _ = model(feat, label)
-            conv_feat = px[0]
-            conv_feat = conv_feat.cpu().numpy()
-            conv_feat = np.hstack([orig_feat[:, 0].reshape(orig_feat.shape[0], 1), conv_feat])
-            conv_feat = test_dataset.undo_mvn(conv_feat)
-            write_binfile(conv_feat, result_path)
-
-def convert_pitch(utt_index, args):
     src_pitch_model = load_pitch_model(os.path.join(args.pitch_dir, args.src_speaker + '.pkl'))
     tgt_pitch_model = load_pitch_model(os.path.join(args.pitch_dir, args.tgt_speaker + '.pkl'))
-    for idx in utt_index:
-        lf0 = read_binfile(os.path.join(args.data_dir, 'feature', args.src_speaker, 'lf0', args.name_format.format(idx) + '.lf0'), dim=1)
-        conv_lf0 = pitch_conversion(lf0, src_pitch_model, tgt_pitch_model)
-        write_binfile(conv_lf0, os.path.join(args.exp_dir, 'rec_feature', '{}2{}'.format(args.src_speaker, args.tgt_speaker), 'lf0',
-                                   args.name_format.format(idx) + '.lf0'))
+    with torch.no_grad():
+        for i in range(len(test_dataset)):
+            sample = test_dataset[i]
+            convert_feature(model, sample, device, args)
+            convert_pitch(sample, src_pitch_model, tgt_pitch_model)
 
 
+def convert_feature(model, sample, device, args):
+    feat, label, orig_feat, result_path, lf0 = sample
+    feat = torch.from_numpy(feat)
+    label = label.repeat(feat.shape[0], 0)
+    label = torch.from_numpy(label)
+    feat = feat.to(device)
+    label = label.to(device)
+    px, _, _, _ = model(feat, label)
+    conv_feat = px[0]
+    conv_feat = conv_feat.cpu().numpy()
+    conv_feat = np.hstack([orig_feat[:, 0].reshape(orig_feat.shape[0], 1), conv_feat])
+    conv_feat = test_dataset.undo_mvn(conv_feat)
+    write_binfile(conv_feat, result_path.format(args.feature_type, args.feature_type))
 
+
+def convert_pitch(sample, src_pitch_model, tgt_pitch_model):
+    _, _, _, result_path, lf0 = sample
+    conv_lf0 = pitch_conversion(lf0, src_pitch_model, tgt_pitch_model)
+    write_binfile(conv_lf0, result_path.format('lf0', 'lf0'))
 
 
 if __name__ == '__main__':
@@ -94,24 +96,21 @@ if __name__ == '__main__':
 
     if args.dataset == 'Arctic':
         args.model_dir = './exp/arctic/model/model_' + '_'.join(speakers)
-        args.name_format = 'arctic_a{0:04d}'
+        args.name_format = 'arctic_{0}{1:04d}'
         args.pitch_dir = './exp/arctic/pitch_model'
-        args.data_dir = './dataset/arctic'
+        args.dataset_path = './dataset/arctic'
         args.exp_dir = './exp/arctic'
 
     set_logger(custom_logger("{0}/test_{1}.log".format(args.log_dir, datetime.datetime.now())))
 
     check_point = torch.load(os.path.join(args.model_dir, 'model_20.pth'))
 
-    test_dataset = Arctic('test', feature_type=args.feature_type, speakers=speakers, src_speaker=args.src_speaker, tgt_speaker=args.tgt_speaker,
+    test_dataset = Arctic('test', args.dataset_path, args.exp_dir, args.name_format,
+                          feature_type=args.feature_type, speakers=speakers, src_speaker=args.src_speaker, tgt_speaker=args.tgt_speaker,
                           utt_index=[i for i in range(251, 251 + args.num_test_utt)],  transform=None, use_mvn=True)
 
     model = VaeMlp().to(device)
     model.load_state_dict(check_point['state_dict'])
 
     test(model, device, test_dataset, args)
-
-    if not os.path.exists(os.path.join(args.exp_dir, 'rec_feature', '{}2{}'.format(args.src_speaker, args.tgt_speaker), 'lf0')):
-        os.mkdir(os.path.join(args.exp_dir, 'rec_feature', '{}2{}'.format(args.src_speaker, args.tgt_speaker), 'lf0'))
-    convert_pitch([i for i in range(251, 251 + args.num_test_utt)], args)
 

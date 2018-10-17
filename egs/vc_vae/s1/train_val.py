@@ -98,22 +98,25 @@ if __name__ == '__main__':
 
     if args.dataset == 'arctic':
         args.model_dir = './exp/arctic/model/model_' + '_'.join(speakers)
-        args.name_format = 'arctic_a{0:04d}'
+        args.name_format = 'arctic_{0}{1:04d}'
         args.pitch_dir = './exp/arctic/pitch_model'
+        args.dataset_path = './dataset/arctic'
+        args.exp_dir = './exp/arctic'
 
     set_logger(custom_logger("{0}/train_{1}.log".format(args.log_dir, datetime.datetime.now())))
 
     train_loader = DataLoader(
-        Arctic('train', feature_type=args.feature_type, speakers=speakers, utt_index=[i for i in range(1, 1 + args.num_train_utt)],
+        Arctic('train', args.dataset_path, args.exp_dir, args.name_format,
+               feature_type=args.feature_type, speakers=speakers, utt_index=[i for i in range(1, 1 + args.num_train_utt)],
                transform=None, use_mvn=True),
         batch_size=args.batch_size, shuffle=True, **kwargs)
     test_loader = DataLoader(
-        Arctic('val', feature_type=args.feature_type, speakers=speakers, utt_index=[i for i in range(1 + args.num_train_utt,
-                                                                                                           1 + args.num_train_utt + args.num_val_utt)],
+        Arctic('val', args.dataset_path, args.exp_dir, args.name_format,
+               feature_type=args.feature_type, speakers=speakers, utt_index=[i for i in range(1 + args.num_train_utt,
+                                                                            1 + args.num_train_utt + args.num_val_utt)],
                transform=None, use_mvn=True),
         batch_size=args.batch_size, shuffle=True, **kwargs)
 
-    args.feature_path = train_loader.dataset._feature_path
     build_pitch_model(speakers, args)
 
     model = VaeMlp().to(device)

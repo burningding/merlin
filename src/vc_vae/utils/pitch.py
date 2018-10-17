@@ -5,24 +5,25 @@ import pickle
 from .model_io import *
 from logger import *
 
-def build_pitch_model(speakers, args):
+
+def build_pitch_model(speakers, num_train_utt, dataset_path, exp_path, name_format):
     """
     Build the pitch model for pitch conversion
     :param speakers: speakers
     :return: pitch model
     """
-    utt_index = [i for i in range(1, 1 + args.num_train_utt)]
+    utt_index = [i for i in range(1, 1 + num_train_utt)]
     for speaker in speakers:
-        lf0_path = os.path.join(args.feature_path, speaker, 'lf0')
+        lf0_path = os.path.join(dataset_path, speaker, 'lf0')
         lf0s = []
         for idx in utt_index:
-            lf0 = read_binfile(os.path.join(lf0_path, args.name_format.format(idx) + '.lf0'), dim=1)
+            lf0 = read_binfile(os.path.join(lf0_path, name_format.format(idx) + '.lf0'), dim=1)
             lf0s.append(lf0[lf0 > 0])
         lf0s = np.hstack(lf0s)
         model = {'logmean': np.mean(lf0s), 'logstd': np.std(lf0s)}
-        save_pitch_model(model, args.pitch_dir, speaker + '.pkl')
-        info('saved the pitch model of {0} to {1}'.format(speaker, os.path.join(args.pitch_dir, speaker + '.pkl')))
-    return
+        save_pitch_model(model, os.path.join(exp_path, 'pitch_model'), speaker + '.pkl')
+        info('saved the pitch model of {0} to {1}'.format(speaker, os.path.join(exp_path, 'pitch_model', speaker + '.pkl')))
+
 
 def pitch_conversion(lf0, src_pitch_model, tgt_pitch_model):
     def log_transform(lf0, src_pitch_model, tgt_pitch_model):

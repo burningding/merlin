@@ -8,7 +8,6 @@ egs/**/conf/*
 
 # Running part
 experiments/
-*data*
 
 # Tools
 SPTK*

@@ -27,3 +27,4 @@ tools/
 
 # Pytorch files
 **.pth
+egs/**

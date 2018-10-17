@@ -1,27 +1,48 @@
 import numpy as np
+import os
+from ..dataset.dataset_utils import *
+import pickle
+from .model_io import *
+from logger import *
 
-
-def build_pitch_model(dataset, speaker_name):
+def build_pitch_model(speakers, args):
     """
     Build the pitch model for pitch conversion
-    :param dataset: An speechDB dataset instance
-    :param speaker_name: The speaker name to be build
+    :param speakers: speakers
     :return: pitch model
     """
-    pitch_model = dataset.load_pitch_model(speaker_name)
-    if pitch_model is None:
-        pitch_model = dataset.build_pitch_model(speaker_name)
-    return pitch_model
+    utt_index = [i for i in range(1, 1 + args.num_train_utt)]
+    for speaker in speakers:
+        lf0_path = os.path.join(args.feature_path, speaker, 'lf0')
+        lf0s = []
+        for idx in utt_index:
+            lf0 = read_binfile(os.path.join(lf0_path, args.name_format.format(idx) + '.lf0'), dim=1)
+            lf0s.append(lf0[lf0 > 0])
+        lf0s = np.hstack(lf0s)
+        model = {'logmean': np.mean(lf0s), 'logstd': np.std(lf0s)}
+        save_pitch_model(model, args.pitch_dir, speaker + '.pkl')
+        info('saved the pitch model of {0} to {1}'.format(speaker, os.path.join(args.pitch_dir, speaker + '.pkl')))
+    return
+
+def pitch_conversion(lf0, src_pitch_model, tgt_pitch_model):
+    def log_transform(lf0, src_pitch_model, tgt_pitch_model):
+        converted_lf0 = (lf0 - src_pitch_model['logmean']) * \
+                              (tgt_pitch_model['logstd'] / src_pitch_model['logstd']) + tgt_pitch_model['logmean']
+        return converted_lf0
+
+    conv_lf0 = log_transform(lf0, src_pitch_model, tgt_pitch_model)
+    return conv_lf0
 
 
-def pitch_conversion(f0, src_pitch_model, tgt_pitch_model):
-    if src_pitch_model['speaker'] == tgt_pitch_model['speaker']:
-        return f0
 
-    def log_transform(f0, src_pitch_model, tgt_pitch_model):
-        converted_f0 = np.exp((np.log(f0 + np.finfo(np.float32).eps) - src_pitch_model['logmean']) * \
-                       (tgt_pitch_model['logstd'] / src_pitch_model['logstd']) + tgt_pitch_model['logmean'])
-        return converted_f0
-    conv_f0 = log_transform(f0, src_pitch_model, tgt_pitch_model)
-    conv_f0[conv_f0 < 10] = 0
-    return conv_f0
+# def pitch_conversion(f0, src_pitch_model, tgt_pitch_model):
+#     if src_pitch_model['speaker'] == tgt_pitch_model['speaker']:
+#         return f0
+#
+#     def log_transform(f0, src_pitch_model, tgt_pitch_model):
+#         converted_f0 = np.exp((np.log(f0 + np.finfo(np.float32).eps) - src_pitch_model['logmean']) * \
+#                        (tgt_pitch_model['logstd'] / src_pitch_model['logstd']) + tgt_pitch_model['logmean'])
+#         return converted_f0
+#     conv_f0 = log_transform(f0, src_pitch_model, tgt_pitch_model)
+#     conv_f0[conv_f0 < 10] = 0
+#     return conv_f0

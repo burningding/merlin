@@ -8,6 +8,10 @@ from src.dataset.Arctic import Arctic
 from torch.utils.data import DataLoader
 from src.dataset.transform import Compose, LogTransform, Normalization
 from src.utils.model_io import save_checkpoint
+from src.utils.pitch import *
+from src.utils.logger import *
+import datetime
+
 
 
 def train(epoch, model, device, optimizer, train_loader, args):
@@ -24,12 +28,12 @@ def train(epoch, model, device, optimizer, train_loader, args):
         train_loss += loss.item()
         optimizer.step()
         if batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+            info('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                 100. * batch_idx / len(train_loader),
                 loss.item() / len(data)))
 
-    print('====> Epoch: {} Average loss: {:.4f}'.format(
+    info('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss / len(train_loader.dataset)))
     save_checkpoint({
             'epoch': epoch + 1,
@@ -49,7 +53,7 @@ def test(epoch, model, device, test_loader):
             test_loss += vae_loss_function(px, data, mu, logvar).item()
 
     test_loss /= len(test_loader.dataset)
-    print('====> Test set loss: {:.4f}'.format(test_loss))
+    info('====> Test set loss: {:.4f}'.format(test_loss))
 
 
 if __name__ == '__main__':
@@ -65,10 +69,21 @@ if __name__ == '__main__':
                         help='random seed (default: 1)')
     parser.add_argument('--log-interval', type=int, default=20, metavar='N',
                         help='how many batches to wait before logging training status')
-    parser.add_argument('--dataset', type=str, default='Arctic', metavar='D',
+    parser.add_argument('--log-dir', type=str, default='./exp/arctic/log', metavar='L',
+                        help='the directory of the log')
+    parser.add_argument('--dataset', type=str, default='arctic', metavar='D',
                         help='the dataset used for the experiment')
     parser.add_argument('--feature_type', type=str, default='mgc', metavar='F',
                         help='the feature type used for the experiment')
+
+    # VC speakers
+    parser.add_argument('--speakers', type=str, default='bdl slt', metavar='S1S2SN',
+                        help='All the speakers in training')
+    # utterance indices
+    parser.add_argument('--num-train-utt', type=int, default=250, metavar='T',
+                        help='number of training utterances')
+    parser.add_argument('--num-val-utt', type=int, default=50, metavar='V',
+                        help='number of validation utterances')
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -79,17 +94,27 @@ if __name__ == '__main__':
 
     kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
-    if args.dataset == 'Arctic':
-        args.model_dir = './exp/arctic/model'
+    speakers = args.speakers.split()
+
+    if args.dataset == 'arctic':
+        args.model_dir = './exp/arctic/model/model_' + '_'.join(speakers)
+        args.name_format = 'arctic_a{0:04d}'
+        args.pitch_dir = './exp/arctic/pitch_model'
+
+    set_logger(custom_logger("{0}/train_{1}.log".format(args.log_dir, datetime.datetime.now())))
 
     train_loader = DataLoader(
-        Arctic('train', feature_type=args.feature_type, speakers=['bdl', 'slt'], utt_index=[i for i in range(1, 251)],
+        Arctic('train', feature_type=args.feature_type, speakers=speakers, utt_index=[i for i in range(1, 1 + args.num_train_utt)],
                transform=None, use_mvn=True),
         batch_size=args.batch_size, shuffle=True, **kwargs)
     test_loader = DataLoader(
-        Arctic('val', feature_type=args.feature_type, speakers=['bdl', 'slt'], utt_index=[i for i in range(251, 301)],
+        Arctic('val', feature_type=args.feature_type, speakers=speakers, utt_index=[i for i in range(1 + args.num_train_utt,
+                                                                                                           1 + args.num_train_utt + args.num_val_utt)],
                transform=None, use_mvn=True),
         batch_size=args.batch_size, shuffle=True, **kwargs)
+
+    args.feature_path = train_loader.dataset._feature_path
+    build_pitch_model(speakers, args)
 
     model = VaeMlp().to(device)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)

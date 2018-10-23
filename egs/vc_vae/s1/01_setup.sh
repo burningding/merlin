@@ -13,7 +13,7 @@ fi
 
 current_working_dir=$(pwd)
 merlin_dir=$(dirname $(dirname $(dirname $current_working_dir)))
-experiments_dir=${current_working_dir}/experiments
+exp_dir=${current_working_dir}/exp
 data_dir=${current_working_dir}/dataset/arctic
 
 src_speaker=$1
@@ -21,13 +21,12 @@ tgt_speaker=$2
 
 voice_name=$12$2
 
-src_voice_dir=${experiments_dir}/${src_speaker}
-tgt_voice_dir=${experiments_dir}/${voice_name}
-
-src_acoustic_dir=${src_voice_dir}/acoustic_model
-tgt_acoustic_dir=${tgt_voice_dir}/acoustic_model
-
-synthesis_dir=${tgt_voice_dir}/test_synthesis
+log_dir=${exp_dir}/log
+model_dir=${exp_dir}/model
+pitch_model_dir=${exp_dir}/pitch_model
+rec_feature_dir=${exp_dir}/rec_feature
+rec_wav_dir=${exp_dir}/rec_wav
+scp_dir=${exp_dir}/scp
 
 mkdir -p ${data_dir}
 mkdir -p ${data_dir}/wav
@@ -37,15 +36,13 @@ mkdir -p ${data_dir}/feature
 mkdir -p ${data_dir}/feature/$src_speaker
 mkdir -p ${data_dir}/feature/$tgt_speaker
 
-mkdir -p ${experiments_dir}
-mkdir -p ${src_voice_dir}
-mkdir -p ${tgt_voice_dir}
-mkdir -p ${src_acoustic_dir}
-mkdir -p ${tgt_acoustic_dir}
-mkdir -p ${src_acoustic_dir}/data
-mkdir -p ${tgt_acoustic_dir}/data
-mkdir -p ${tgt_acoustic_dir}/inter_module
-mkdir -p ${synthesis_dir}
+mkdir -p ${exp_dir}
+mkdir -p ${log_dir}
+mkdir -p ${model_dir}
+mkdir -p ${pitch_model_dir}
+mkdir -p ${rec_feature_dir}
+mkdir -p ${rec_wav_dir}
+mkdir -p ${scp_dir}
 
 # create an empty question file
 touch ${merlin_dir}/misc/questions/questions-vc.hed

@@ -14,10 +14,10 @@ def build_pitch_model(speakers, num_train_utt, dataset_path, exp_path, name_form
     """
     utt_index = [i for i in range(1, 1 + num_train_utt)]
     for speaker in speakers:
-        lf0_path = os.path.join(dataset_path, speaker, 'lf0')
+        lf0_path = os.path.join(dataset_path, 'feature', speaker, 'lf0')
         lf0s = []
         for idx in utt_index:
-            lf0 = read_binfile(os.path.join(lf0_path, name_format.format(idx) + '.lf0'), dim=1)
+            lf0 = read_binfile(os.path.join(lf0_path, name_format.format('a', idx) + '.lf0'), dim=1)
             lf0s.append(lf0[lf0 > 0])
         lf0s = np.hstack(lf0s)
         model = {'logmean': np.mean(lf0s), 'logstd': np.std(lf0s)}

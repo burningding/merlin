@@ -7,13 +7,14 @@ import numpy as np
 from random import shuffle
 from .dataset_utils import *
 import pickle
+import math
 
 class Arctic(SpeechDB):
     """
     Dataset class for CMU ARCTIC dataset
     """
     def __init__(self, split, dataset_path, exp_path, name_format, feature_type=None, feature_dim=None, speakers=None, src_speaker=None, tgt_speaker=None,
-                 utt_index=None, transform=None, input_type=None, use_mvn=False):
+                 utt_index=None, transform=None, input_type=None, use_mvn=False, input_len=None, input_shift=None):
         """
         :param split: 'train', 'val', or 'test'
         :param feature_type: 'spectrogram', 'mfcc', or 'mcep'
@@ -38,17 +39,15 @@ class Arctic(SpeechDB):
         self._speech_db = self._generate_speech_db()
         self._transform = transform
         self._input_type = input_type if input_type else 'frame'
-        self._input_len = self._get_input_len()
+        self._input_len = input_len if input_len else self._get_input_len()
+        self._input_shift = input_shift if input_shift else self._get_input_shift()
         self._input_list = self._get_input_list()
         self._use_mvn = use_mvn
         self._mvn_params_path = self._get_default_mvn_params_path()
         self._mvn_params = self._get_mvn_params()
 
     def __len__(self):
-        if self._split == 'train' or self._split == 'val':
-            return len(self._input_list)
-        else:
-            return len(self._speech_db)
+        return len(self._input_list)
 
     def speaker_feat_path(self, speaker):
         speaker_feat_path = os.path.join(self._feature_path, speaker, self._feature_type)
@@ -115,7 +114,21 @@ class Arctic(SpeechDB):
         if self._input_type == 'frame':
             input_len = 1
         elif self._input_type == 'seq':
-            input_len = 16
+            input_len = 20
+        else:
+            raise ValueError('Unknown input type, use frame or seq instead')
+        return input_len
+
+    def _get_input_shift(self):
+        if self._input_type == 'frame':
+            input_len = 1
+        elif self._input_type == 'seq':
+            if self._split == 'train' or self._split == 'val':
+                input_len = 5
+            elif self._split == 'test':
+                input_len = 20
+            else:
+                raise ValueError('Unknown split, use train, val, or test')
         else:
             raise ValueError('Unknown input type, use frame or seq instead')
         return input_len
@@ -148,10 +161,11 @@ class Arctic(SpeechDB):
             for index in self._utt_index:
                 feat_path = self.feat_path_from_index(speaker, index)
                 lf0_path = self.pitch_path_from_index(speaker, index)
+                result_path = self.result_path_from_index(index)
                 feat = read_binfile(feat_path, self._feature_dim)
                 utt_len = feat.shape[0]
                 speech_dict = {'speaker': speaker, 'utt_index': index, 'lf0_path': lf0_path,
-                               'feat_path': feat_path, 'utt_len': utt_len}
+                               'feat_path': feat_path, 'utt_len': utt_len, 'result_path': result_path}
                 speech_db.append(speech_dict)
             return speech_db
         else:
@@ -161,7 +175,7 @@ class Arctic(SpeechDB):
     def _get_input_list(self):
         input_list = []
         for i in range(len(self._speech_db)):
-            for j in range(self._speech_db[i]['utt_len'] - self._input_len + 1):
+            for j in range(0, self._speech_db[i]['utt_len'], self._input_shift):
                 input_list.append([i, j])
         return input_list
 
@@ -181,29 +195,67 @@ class Arctic(SpeechDB):
         assert (isinstance(sample, np.ndarray))
         return sample[:, 1:]
 
+    def _seq_padding(self, seq):
+        # if not seq.shape[0] % self._input_len == 0:
+        #     length = int((seq.shape[0] // self._input_len + 1) * self._input_len)
+        #     pad_seq = np.zeros((length, seq.shape[1]), dtype=np.float32)
+        #     pad_seq[:seq.shape[0], :] = seq
+        #     return pad_seq
+        # else:
+        #     return seq
+
+        # since the shift is not equal to input length, we pad more for safety
+        length = int((seq.shape[0] // self._input_len + 2) * self._input_len)
+        pad_seq = np.zeros((length, seq.shape[1]), dtype=np.float32)
+        pad_seq[:seq.shape[0], :] = seq
+        return pad_seq
+
+    def get_speech_db(self):
+        return self._speech_db
+
+    def get_input_len(self):
+        return self._input_len
+
+    def get_feature_dim(self):
+        return self._feature_dim
+
+    def get_feature_type(self):
+        return self._feature_type
+
     def __getitem__(self, index):
         # if self._transform is not None:
         #     seg = self._transform(seg)
-        if self._split == 'train' or self._split == 'val':
-            utt_idx, seg_idx = self._input_list[index]
-            speech_dict = self._speech_db[utt_idx]
-            feat = read_binfile(speech_dict['feat_path'], self._feature_dim)
-            seg = feat[seg_idx: seg_idx + self._input_len, :]
-            orig_seg = self.apply_mvn(seg)
-            seg = self._remove_energe(orig_seg)
-            label = self._speaker_to_one_hot(speech_dict['speaker'])
-            return seg, label
-        elif self._split == 'test':
-            speech_dict = self._speech_db[index]
-            feat = read_binfile(speech_dict['feat_path'], self._feature_dim)
-            lf0 = read_binfile(speech_dict['lf0_path'], 1)
-            label = self._speaker_to_one_hot(self._tgt_speaker)
-            result_path = self.result_path_at(index)
-            orig_feat = self.apply_mvn(feat)
-            feat = self._remove_energe(orig_feat)
-            return feat, label, orig_feat, result_path, lf0
-        else:
-            raise ValueError('Unknown split, use train, val, or, test instead.')
+        utt_idx, seg_idx = self._input_list[index]
+        speech_dict = self._speech_db[utt_idx]
+        feat = read_binfile(speech_dict['feat_path'], self._feature_dim)
+        feat = self._seq_padding(feat)
+        seg = feat[seg_idx: seg_idx + self._input_len, :]
+        seg = self.apply_mvn(seg)
+        seg = self._remove_energe(seg)
+        label = self._speaker_to_one_hot(speech_dict['speaker'])
+        return seg, label
+
+        # if self._split == 'train' or self._split == 'val':
+        #     utt_idx, seg_idx = self._input_list[index]
+        #     speech_dict = self._speech_db[utt_idx]
+        #     feat = read_binfile(speech_dict['feat_path'], self._feature_dim)
+        #     feat = self._seq_padding(feat)
+        #     seg = feat[seg_idx: seg_idx + self._input_len, :]
+        #     seg = self.apply_mvn(seg)
+        #     seg = self._remove_energe(seg)
+        #     label = self._speaker_to_one_hot(speech_dict['speaker'])
+        #     return seg, label
+        # elif self._split == 'test':
+        #     speech_dict = self._speech_db[index]
+        #     feat = read_binfile(speech_dict['feat_path'], self._feature_dim)
+        #     lf0 = read_binfile(speech_dict['lf0_path'], 1)
+        #     label = self._speaker_to_one_hot(self._tgt_speaker)
+        #     result_path = self.result_path_at(index)
+        #     orig_feat = self.apply_mvn(feat)
+        #     feat = self._remove_energe(orig_feat)
+        #     return feat, label, orig_feat, result_path, lf0
+        # else:
+        #     raise ValueError('Unknown split, use train, val, or, test instead.')
 
 
 

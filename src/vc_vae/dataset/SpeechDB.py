@@ -143,6 +143,10 @@ class SpeechDB(Dataset):
         else:
             mean = self._mvn_params["mean"]
             std = self._mvn_params["std"]
+            # To deal with the mgc without energy
+            if sample.shape[1] < mean.shape[1]:
+                mean = mean[:, mean.shape[1] - sample.shape[1]:]
+                std = std[:, mean.shape[1] - sample.shape[1]:]
             return (sample - mean) / std
 
     def undo_mvn(self, sample):
@@ -152,6 +156,10 @@ class SpeechDB(Dataset):
         else:
             mean = self._mvn_params["mean"]
             std = self._mvn_params["std"]
+            # To deal with the mgc without energy
+            if sample.shape[1] < mean.shape[1]:
+                mean = mean[:, mean.shape[1] - sample.shape[1]:]
+                std = std[:, std.shape[1] - sample.shape[1]:]
             return sample * std + mean
 
     def _get_mvn_params(self):

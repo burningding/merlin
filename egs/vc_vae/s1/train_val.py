@@ -3,7 +3,9 @@ import argparse
 import torch
 from torch import optim
 from torch.nn import functional as F
-from src.model.mlp import VaeMlp, vae_loss_function
+from src.model.mlp import VaeMlp
+from src.model.lstm import VaeLstm
+from src.model.loss import vae_loss_function
 from src.dataset.Arctic import Arctic
 from torch.utils.data import DataLoader
 from src.dataset.transform import Compose, LogTransform, Normalization
@@ -21,6 +23,11 @@ def train(epoch, model, device, optimizer, train_loader, args):
         data, label = sampled_batch
         data = data.to(device)
         label = label.to(device)
+        if args.model == 'lstm':
+            batch_size = data.shape[0]
+            model.hidden_enc = model.init_hidden(batch_size)
+            model.hidden_dec = model.init_hidden(batch_size)
+            data = data.permute(1, 0, 2)
         optimizer.zero_grad()
         px, x, mu, logvar = model(data, label)
         loss = vae_loss_function(px, data, mu, logvar)
@@ -29,9 +36,9 @@ def train(epoch, model, device, optimizer, train_loader, args):
         optimizer.step()
         if batch_idx % args.log_interval == 0:
             info('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(data), len(train_loader.dataset),
+                epoch, batch_idx * batch_size, len(train_loader.dataset),
                 100. * batch_idx / len(train_loader),
-                loss.item() / len(data)))
+                loss.item() / batch_size))
 
     info('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss / len(train_loader.dataset)))
@@ -49,6 +56,11 @@ def test(epoch, model, device, test_loader):
         for i, (data, label) in enumerate(test_loader):
             data = data.to(device)
             label = label.to(device)
+            if args.model == 'lstm':
+                batch_size = data.shape[0]
+                model.hidden_enc = model.init_hidden(batch_size)
+                model.hidden_dec = model.init_hidden(batch_size)
+                data = data.permute(1, 0, 2)
             px, x, mu, logvar = model(data, label)
             test_loss += vae_loss_function(px, data, mu, logvar).item()
 
@@ -59,7 +71,7 @@ def test(epoch, model, device, test_loader):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='VAE for VC')
-    parser.add_argument('--batch-size', type=int, default=1024, metavar='N',
+    parser.add_argument('--batch-size', type=int, default=128, metavar='N',
                         help='input batch size for training (default: 128)')
     parser.add_argument('--epochs', type=int, default=20, metavar='N',
                         help='number of epochs to train (default: 10)')
@@ -75,6 +87,10 @@ if __name__ == '__main__':
                         help='the dataset used for the experiment')
     parser.add_argument('--feature_type', type=str, default='mgc', metavar='F',
                         help='the feature type used for the experiment')
+
+    # model type
+    parser.add_argument('--model', type=str, default='mlp', metavar='M',
+                        help='the type of model that are using, mlp or lstm')
 
     # VC speakers
     parser.add_argument('--speakers', type=str, default='bdl slt', metavar='S1S2SN',
@@ -97,7 +113,7 @@ if __name__ == '__main__':
     speakers = args.speakers.split()
 
     if args.dataset == 'arctic':
-        args.model_dir = './exp/arctic/model/model_' + '_'.join(speakers)
+        args.model_dir = './exp/arctic/model/{}/model_'.format(args.model) + '_'.join(speakers)
         args.name_format = 'arctic_{0}{1:04d}'
         args.pitch_dir = './exp/arctic/pitch_model'
         args.dataset_path = './dataset/arctic'
@@ -105,23 +121,30 @@ if __name__ == '__main__':
 
     set_logger(custom_logger("{0}/train_{1}.log".format(args.log_dir, datetime.datetime.now())))
 
+    if args.model == 'mlp':
+        model = VaeMlp().to(device)
+        args.input_type = 'frame'
+    elif args.model == 'lstm':
+        model = VaeLstm(device).to(device)
+        args.input_type = 'seq'
+
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
     train_loader = DataLoader(
         Arctic('train', args.dataset_path, args.exp_dir, args.name_format,
-               feature_type=args.feature_type, speakers=speakers, utt_index=[i for i in range(1, 1 + args.num_train_utt)],
-               transform=None, use_mvn=True),
+               feature_type=args.feature_type, speakers=speakers,
+               utt_index=[i for i in range(1, 1 + args.num_train_utt)],
+               transform=None, use_mvn=True, input_type=args.input_type),
         batch_size=args.batch_size, shuffle=True, **kwargs)
     test_loader = DataLoader(
         Arctic('val', args.dataset_path, args.exp_dir, args.name_format,
-               feature_type=args.feature_type, speakers=speakers, utt_index=[i for i in range(1 + args.num_train_utt,
-                                                                            1 + args.num_train_utt + args.num_val_utt)],
-               transform=None, use_mvn=True),
+               feature_type=args.feature_type, speakers=speakers,
+               utt_index=[i for i in range(1 + args.num_train_utt, 1 + args.num_train_utt + args.num_val_utt)],
+               transform=None, use_mvn=True, input_type=args.input_type),
         batch_size=args.batch_size, shuffle=True, **kwargs)
-
-    build_pitch_model(speakers, args)
-
-    model = VaeMlp().to(device)
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
     for epoch in range(1, args.epochs + 1):
         train(epoch, model, device, optimizer, train_loader, args)
         test(epoch, model, device, test_loader)
+
+    build_pitch_model(speakers, args.num_train_utt, args.dataset_path, args.exp_dir, args.name_format)

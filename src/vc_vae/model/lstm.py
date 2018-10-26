@@ -9,19 +9,29 @@ from conf.pytorch.config import num_speakers
 input_dim = 59
 hidden_dim = 32
 latent_dim = 16
+seq_len = 20
 
-class VaeMlp(nn.Module):
-    def __init__(self):
-        super(VaeMlp, self).__init__()
-
-        self.fc_enc = nn.Linear(input_dim, hidden_dim)
+class VaeLstm(nn.Module):
+    def __init__(self, device):
+        super(VaeLstm, self).__init__()
+        self.device = device
+        self.lstm_enc = nn.LSTM(input_dim, hidden_dim)
         self.fc_enc_gaussian_sample = FcGaussianSample(hidden_dim, latent_dim)
-        self.fc_dec = nn.Linear(latent_dim + num_speakers, hidden_dim)
+        self.lstm_dec = nn.LSTM(latent_dim + num_speakers, hidden_dim)
         # self.fc_dec = nn.Linear(latent_dim, hidden_dim)
         self.fc_dec_gaussian_sample = FcGaussianSample(hidden_dim, input_dim)
 
+    def init_hidden(self, batch_size):
+        # Before we've done anything, we dont have any hidden state.
+        # Refer to the Pytorch documentation to see exactly
+        # why they have this dimensionality.
+        # The axes semantics are (num_layers, minibatch_size, hidden_dim)
+        return (torch.zeros(1, batch_size, hidden_dim).to(self.device),
+                torch.zeros(1, batch_size, hidden_dim).to(self.device))
+
     def encode(self, x):
-        h = torch.tanh(self.fc_enc(x))
+        lstm_out, _ = self.lstm_enc(x.view(seq_len, -1, input_dim), self.hidden_enc)
+        h = lstm_out[-1]
         mu, logvar, z = self.fc_enc_gaussian_sample(h)
         return mu, logvar, z
 
@@ -31,13 +41,15 @@ class VaeMlp(nn.Module):
         return z
 
     def decode(self, z):
-        h = torch.tanh(self.fc_dec(z))
+        z = z.repeat(seq_len, 1, 1)
+        lstm_out, _ = self.lstm_dec(z.view(seq_len, -1, latent_dim + num_speakers), self.hidden_dec)
+        h = lstm_out
         x_mu, x_logvar, x = self.fc_dec_gaussian_sample(h)
         px = [x_mu, x_logvar]
         return px, x
 
     def forward(self, x, label):
-        mu, logvar, z = self.encode(x.view(-1, input_dim))
+        mu, logvar, z = self.encode(x)
         z = self.condition_label(z, label)
         px, x = self.decode(z)
         return px, x, mu, logvar

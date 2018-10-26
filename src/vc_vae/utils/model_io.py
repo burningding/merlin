@@ -11,7 +11,7 @@ def save_checkpoint(state, folder='./exp/arctic/model', filename='model.pth'):
     :return: None
     """
     if not os.path.exists(folder):
-        os.mkdir(folder)
+        os.makedirs(folder)
     filename = os.path.join(folder, filename)
     torch.save(state, filename)
 

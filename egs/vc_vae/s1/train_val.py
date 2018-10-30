@@ -13,6 +13,7 @@ from src.utils.model_io import save_checkpoint
 from src.utils.pitch import *
 from src.utils.logger import *
 import datetime
+from shutil import copyfile
 
 
 
@@ -66,6 +67,7 @@ def test(epoch, model, device, test_loader):
 
     test_loss /= len(test_loader.dataset)
     info('====> Test set loss: {:.4f}'.format(test_loss))
+    return test_loss
 
 
 if __name__ == '__main__':
@@ -103,7 +105,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 
-
+    # pseudo-random
     torch.manual_seed(args.seed)
 
     device = torch.device("cuda" if args.cuda else "cpu")
@@ -119,14 +121,16 @@ if __name__ == '__main__':
         args.dataset_path = './dataset/arctic'
         args.exp_dir = './exp/arctic'
 
-    set_logger(custom_logger("{0}/train_{1}.log".format(args.log_dir, datetime.datetime.now())))
+    set_logger(custom_logger("{0}/train_{1}_{2}.log".format(args.log_dir, args.model, datetime.datetime.now())))
 
     if args.model == 'mlp':
         model = VaeMlp().to(device)
         args.input_type = 'frame'
     elif args.model == 'lstm':
-        model = VaeLstm(device).to(device)
+        model = VaeLstm().to(device)
         args.input_type = 'seq'
+    else:
+        raise ValueError('Unknown model type')
 
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
@@ -134,17 +138,22 @@ if __name__ == '__main__':
         Arctic('train', args.dataset_path, args.exp_dir, args.name_format,
                feature_type=args.feature_type, speakers=speakers,
                utt_index=[i for i in range(1, 1 + args.num_train_utt)],
-               transform=None, use_mvn=True, input_type=args.input_type),
+               use_mvn=True, input_type=args.input_type),
         batch_size=args.batch_size, shuffle=True, **kwargs)
+
     test_loader = DataLoader(
         Arctic('val', args.dataset_path, args.exp_dir, args.name_format,
                feature_type=args.feature_type, speakers=speakers,
                utt_index=[i for i in range(1 + args.num_train_utt, 1 + args.num_train_utt + args.num_val_utt)],
-               transform=None, use_mvn=True, input_type=args.input_type),
+               use_mvn=True, input_type=args.input_type),
         batch_size=args.batch_size, shuffle=True, **kwargs)
 
+    test_loss_list = []
     for epoch in range(1, args.epochs + 1):
         train(epoch, model, device, optimizer, train_loader, args)
-        test(epoch, model, device, test_loader)
+        test_loss = test(epoch, model, device, test_loader)
+        test_loss_list.append(test_loss)
 
-    build_pitch_model(speakers, args.num_train_utt, args.dataset_path, args.exp_dir, args.name_format)
+    best_epoch = test_loss_list.index(min(test_loss))
+    copyfile(os.path.join(args.model_dir, 'model_{}.pth'.format(best_epoch)), os.path.join(args.model_dir, 'model_opt.pth'))
+    build_pitch_model(speakers, args)

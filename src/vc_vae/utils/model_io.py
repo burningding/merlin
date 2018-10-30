@@ -16,9 +16,10 @@ def save_checkpoint(state, folder='./exp/arctic/model', filename='model.pth'):
     torch.save(state, filename)
 
 
-def save_pitch_model(model, folder, filename):
+def save_pitch_model(model, filename):
+    folder = os.path.dirname(filename)
     if not os.path.exists(folder):
-        os.mkdir(folder)
+        os.makedirs(folder)
     filename = os.path.join(folder, filename)
     with open(filename, 'wb') as f:
         pickle.dump(model, f)
@@ -26,7 +27,7 @@ def save_pitch_model(model, folder, filename):
 
 def load_pitch_model(filename):
     if not os.path.exists(filename):
-        return None
+        raise RuntimeError('pitch model does not exist, please run train_val.py to build the pitch model first')
     with open(filename, 'rb') as f:
         model = pickle.load(f)
     return model

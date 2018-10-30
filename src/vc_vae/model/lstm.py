@@ -10,11 +10,11 @@ input_dim = 59
 hidden_dim = 32
 latent_dim = 16
 seq_len = 20
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class VaeLstm(nn.Module):
-    def __init__(self, device):
+    def __init__(self):
         super(VaeLstm, self).__init__()
-        self.device = device
         self.lstm_enc = nn.LSTM(input_dim, hidden_dim)
         self.fc_enc_gaussian_sample = FcGaussianSample(hidden_dim, latent_dim)
         self.lstm_dec = nn.LSTM(latent_dim + num_speakers, hidden_dim)
@@ -26,8 +26,8 @@ class VaeLstm(nn.Module):
         # Refer to the Pytorch documentation to see exactly
         # why they have this dimensionality.
         # The axes semantics are (num_layers, minibatch_size, hidden_dim)
-        return (torch.zeros(1, batch_size, hidden_dim).to(self.device),
-                torch.zeros(1, batch_size, hidden_dim).to(self.device))
+        return (torch.zeros(1, batch_size, hidden_dim).to(device),
+                torch.zeros(1, batch_size, hidden_dim).to(device))
 
     def encode(self, x):
         lstm_out, _ = self.lstm_enc(x.view(seq_len, -1, input_dim), self.hidden_enc)

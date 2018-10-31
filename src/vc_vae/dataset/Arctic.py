@@ -121,17 +121,17 @@ class Arctic(SpeechDB):
 
     def _get_input_shift(self):
         if self._input_type == 'frame':
-            input_len = 1
+            input_shift = 1
         elif self._input_type == 'seq':
             if self._split == 'train' or self._split == 'val':
-                input_len = 5
+                input_shift = 5
             elif self._split == 'test':
-                input_len = 20
+                input_shift = 20
             else:
                 raise ValueError('Unknown split, use train, val, or test')
         else:
             raise ValueError('Unknown input type, use frame or seq instead')
-        return input_len
+        return input_shift
 
     def _generate_speech_db(self):
         """

@@ -37,7 +37,8 @@ class VaeMlp(nn.Module):
         return px, x
 
     def forward(self, x, label):
-        mu, logvar, z = self.encode(x.view(-1, input_dim))
+        x = x.view(-1, input_dim)
+        mu, logvar, z = self.encode(x)
         z = self.condition_label(z, label)
         px, x = self.decode(z)
         return px, x, mu, logvar

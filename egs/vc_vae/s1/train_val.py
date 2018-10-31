@@ -24,8 +24,8 @@ def train(epoch, model, device, optimizer, train_loader, args):
         data, label = sampled_batch
         data = data.to(device)
         label = label.to(device)
+        batch_size = data.shape[0]
         if args.model == 'lstm':
-            batch_size = data.shape[0]
             model.hidden_enc = model.init_hidden(batch_size)
             model.hidden_dec = model.init_hidden(batch_size)
             data = data.permute(1, 0, 2)
@@ -77,8 +77,6 @@ if __name__ == '__main__':
                         help='input batch size for training (default: 128)')
     parser.add_argument('--epochs', type=int, default=20, metavar='N',
                         help='number of epochs to train (default: 10)')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
-                        help='enables CUDA training')
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                         help='random seed (default: 1)')
     parser.add_argument('--log-interval', type=int, default=20, metavar='N',
@@ -103,19 +101,18 @@ if __name__ == '__main__':
     parser.add_argument('--num-val-utt', type=int, default=50, metavar='V',
                         help='number of validation utterances')
     args = parser.parse_args()
-    args.cuda = not args.no_cuda and torch.cuda.is_available()
 
     # pseudo-random
     torch.manual_seed(args.seed)
 
-    device = torch.device("cuda" if args.cuda else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
     speakers = args.speakers.split()
 
     if args.dataset == 'arctic':
-        args.model_dir = './exp/arctic/model/{}/model_'.format(args.model) + '_'.join(speakers)
+        args.model_dir = './exp/arctic/model/{0}/model_{1}'.format(args.model, '_'.join(speakers))
         args.name_format = 'arctic_{0}{1:04d}'
         args.pitch_dir = './exp/arctic/pitch_model'
         args.dataset_path = './dataset/arctic'
@@ -154,6 +151,6 @@ if __name__ == '__main__':
         test_loss = test(epoch, model, device, test_loader)
         test_loss_list.append(test_loss)
 
-    best_epoch = test_loss_list.index(min(test_loss))
+    best_epoch = test_loss_list.index(min(test_loss_list))
     copyfile(os.path.join(args.model_dir, 'model_{}.pth'.format(best_epoch)), os.path.join(args.model_dir, 'model_opt.pth'))
     build_pitch_model(speakers, args)

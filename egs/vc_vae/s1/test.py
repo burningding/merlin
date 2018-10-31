@@ -28,14 +28,15 @@ def test(model, device, test_loader, args):
             data, label = sampled_batch
             data = data.to(device)
             label = label.to(device)
+            batch_size = data.shape[0]
             if args.model == 'lstm':
-                batch_size = data.shape[0]
                 model.hidden_enc = model.init_hidden(batch_size)
                 model.hidden_dec = model.init_hidden(batch_size)
                 data = data.permute(1, 0, 2)
             px, _, _, _ = model(data, label)
             conv_feat = px[0]
-            conv_feat = conv_feat.permute(1, 0, 2)
+            if args.model == 'lstm':
+                conv_feat = conv_feat.permute(1, 0, 2)
             conv_feat = conv_feat.cpu().numpy()
             conv_feats.append(conv_feat)
     conv_feats = np.vstack(conv_feats)
@@ -106,8 +107,6 @@ if __name__ == '__main__':
                         help='input batch size for training (default: 128)')
     parser.add_argument('--epochs', type=int, default=10, metavar='N',
                         help='number of epochs to train (default: 10)')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
-                        help='enables CUDA training')
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                         help='random seed (default: 1)')
     parser.add_argument('--log-interval', type=int, default=5, metavar='N',
@@ -126,6 +125,8 @@ if __name__ == '__main__':
     # model type
     parser.add_argument('--model', type=str, default='mlp', metavar='M',
                         help='the type of model that are using, mlp or lstm')
+    parser.add_argument('--snapshot', type=str, default='model_opt.pth', metavar='S',
+                        help='the snapshot of the model used for testing')
 
     # VC speakers
     parser.add_argument('--speakers', type=str, default='bdl slt', metavar='S1S2SN',
@@ -140,41 +141,39 @@ if __name__ == '__main__':
                         help='number of testing utterances')
 
     args = parser.parse_args()
-    args.cuda = not args.no_cuda and torch.cuda.is_available()
-
 
     torch.manual_seed(args.seed)
 
-    device = torch.device("cuda" if args.cuda else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
+    kwargs = {'num_workers': 1, 'pin_memory': True} if torch.cuda.is_available() else {}
 
     speakers = args.speakers.split()
 
     if args.dataset == 'Arctic':
-        args.model_dir = './exp/arctic/model/model_' + '_'.join(speakers)
+        args.model_dir = './exp/arctic/model/{0}/model_{1}'.format(args.model, '_'.join(speakers))
         args.name_format = 'arctic_{0}{1:04d}'
         args.pitch_dir = './exp/arctic/pitch_model'
         args.dataset_path = './dataset/arctic'
         args.exp_dir = './exp/arctic'
 
-    set_logger(custom_logger("{0}/test_{1}.log".format(args.log_dir, datetime.datetime.now())))
+    set_logger(custom_logger("{0}/test_{1}_{2}.log".format(args.log_dir, args.model, datetime.datetime.now())))
 
     if args.model == 'mlp':
         model = VaeMlp().to(device)
         args.input_type = 'frame'
     elif args.model == 'lstm':
-        model = VaeLstm(device).to(device)
+        model = VaeLstm().to(device)
         args.input_type = 'seq'
 
-    check_point = torch.load(os.path.join(args.model_dir, 'model_20.pth'))
+    check_point = torch.load(os.path.join(args.model_dir, args.snapshot))
 
     model.load_state_dict(check_point['state_dict'])
 
     test_dataset = Arctic('test', args.dataset_path, args.exp_dir, args.name_format,
                feature_type=args.feature_type, speakers=speakers, src_speaker=args.src_speaker, tgt_speaker=args.tgt_speaker,
                utt_index=[i for i in range(251, 251 + args.num_test_utt)],
-               transform=None, use_mvn=True, input_type=args.input_type, input_shift=20)
+               transform=None, use_mvn=True, input_type=args.input_type, input_shift=args.input_shift)
 
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, **kwargs)
 

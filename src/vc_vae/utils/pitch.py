@@ -15,7 +15,7 @@ def build_pitch_model(speakers, args):
     """
     num_train_utt = args.num_train_utt
     dataset_path = args.dataset_path
-    exp_path = args.exp_path
+    exp_dir = args.exp_dir
     name_format = args.name_format
     utt_index = [i for i in range(1, 1 + num_train_utt)]
     for speaker in speakers:
@@ -26,8 +26,8 @@ def build_pitch_model(speakers, args):
             lf0s.append(lf0[lf0 > 0])
         lf0s = np.hstack(lf0s)
         model = {'logmean': np.mean(lf0s), 'logstd': np.std(lf0s)}
-        save_pitch_model(model, os.path.join(exp_path, 'pitch_model', speaker + '.pkl'))
-        info('saved the pitch model of {0} to {1}'.format(speaker, os.path.join(exp_path, 'pitch_model', speaker + '.pkl')))
+        save_pitch_model(model, os.path.join(exp_dir, 'pitch_model', speaker + '.pkl'))
+        info('saved the pitch model of {0} to {1}'.format(speaker, os.path.join(exp_dir, 'pitch_model', speaker + '.pkl')))
 
 
 def pitch_conversion(lf0, src_pitch_model, tgt_pitch_model):

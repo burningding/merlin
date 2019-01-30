@@ -1,6 +1,6 @@
 ## VC_VAE: re-implemented variation autoencoder based voice conversion baselines
 
-This repository contains the variation autoencoder based voice conversion baselines. Both frame-to-frame model and seq-to-seq model are included.
+This repository contains the variation autoencoder based voice conversion baselines. I re-implemented them in pytorch. Both frame-to-frame model and seq-to-seq model are included.
 
 Running the code
 ---------------------------

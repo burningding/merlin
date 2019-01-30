@@ -29,6 +29,7 @@ class Arctic(SpeechDB):
         self._feature_path = self._get_default_feature_path()
         self._speakers = speakers if speakers else ['bdl', 'rms', 'slt', 'clb']
         self._num_speakers = len(self._speakers)
+        self._input_type = input_type if input_type else 'frame'
         if self._split == 'test':
             self._src_speaker = src_speaker if src_speaker else 'bdl'
             self._tgt_speaker = tgt_speaker if tgt_speaker else 'rms'
@@ -38,7 +39,6 @@ class Arctic(SpeechDB):
         self._utt_index = utt_index if utt_index else self._get_index_from_split()
         self._speech_db = self._generate_speech_db()
         self._transform = transform
-        self._input_type = input_type if input_type else 'frame'
         self._input_len = input_len if input_len else self._get_input_len()
         self._input_shift = input_shift if input_shift else self._get_input_shift()
         self._input_list = self._get_input_list()
@@ -90,9 +90,9 @@ class Arctic(SpeechDB):
         return default_feature_path
 
     def _get_default_result_path(self):
-        default_result_path = os.path.join(self._exp_path, 'rec_feature')
+        default_result_path = os.path.join(self._exp_path, 'rec_feature', self._input_type)
         if not os.path.exists(default_result_path):
-            os.mkdir(default_result_path)
+            os.makedirs(default_result_path)
         return default_result_path
 
     def _get_default_mvn_params_path(self):

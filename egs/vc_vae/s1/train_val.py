@@ -93,7 +93,7 @@ if __name__ == '__main__':
                         help='the type of model that are using, mlp or lstm')
 
     # VC speakers
-    parser.add_argument('--speakers', type=str, default='bdl slt', metavar='S1S2SN',
+    parser.add_argument('--speakers', type=str, default='bdl_slt', metavar='S1S2SN',
                         help='All the speakers in training')
     # utterance indices
     parser.add_argument('--num-train-utt', type=int, default=250, metavar='T',
@@ -107,9 +107,9 @@ if __name__ == '__main__':
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
+    kwargs = {'num_workers': 1, 'pin_memory': True} if torch.cuda.is_available() else {}
 
-    speakers = args.speakers.split()
+    speakers = args.speakers.split('_')
 
     if args.dataset == 'arctic':
         args.model_dir = './exp/arctic/model/{0}/model_{1}'.format(args.model, '_'.join(speakers))

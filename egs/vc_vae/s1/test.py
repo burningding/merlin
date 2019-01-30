@@ -52,6 +52,7 @@ def test(model, device, test_loader, args):
 #             convert_feature(model, sample, device, args)
 #             convert_pitch(sample, src_pitch_model, tgt_pitch_model)
 
+
 def voice_conversion(conv_feats, test_dataset, args):
     src_pitch_model = load_pitch_model(os.path.join(args.pitch_dir, args.src_speaker + '.pkl'))
     tgt_pitch_model = load_pitch_model(os.path.join(args.pitch_dir, args.tgt_speaker + '.pkl'))
@@ -59,16 +60,22 @@ def voice_conversion(conv_feats, test_dataset, args):
     input_len = test_dataset.get_input_len()
     feature_dim = test_dataset.get_feature_dim()
     feature_type = test_dataset.get_feature_type()
+    model_type = args.model
     idx_count = 0
     for speech_dict in speech_db:
         utt_len = speech_dict['utt_len']
         num_seq = utt_len // input_len
         if num_seq * input_len < utt_len:
             num_seq += 1
-        feat = conv_feats[idx_count: idx_count + num_seq, :, :]
+        if args.model == 'lstm':
+            feat = conv_feats[idx_count: idx_count + num_seq, :, :]
+            feat = np.reshape(feat, (-1, feat.shape[-1]))
+            feat = feat[:utt_len, :]
+        elif args.model == 'mlp':
+            feat = conv_feats[idx_count: idx_count + num_seq, :]
+        else:
+            raise ValueError('Unknow model, use lstm or mlp')
         idx_count += num_seq
-        feat = np.reshape(feat, (-1, feat.shape[-1]))
-        feat = feat[:utt_len, :]
         feat = test_dataset.undo_mvn(feat)
         orig_feat = read_binfile(speech_dict['feat_path'], feature_dim)
         feat = np.hstack([orig_feat[:, 0].reshape(orig_feat.shape[0], 1), feat])
@@ -129,7 +136,7 @@ if __name__ == '__main__':
                         help='the snapshot of the model used for testing')
 
     # VC speakers
-    parser.add_argument('--speakers', type=str, default='bdl slt', metavar='S1S2SN',
+    parser.add_argument('--speakers', type=str, default='bdl_slt', metavar='S1S2SN',
                         help='All the speakers in training')
     parser.add_argument('--src-speaker', type=str, default='bdl', metavar='S',
                         help='src speaker in VC')
@@ -148,7 +155,7 @@ if __name__ == '__main__':
 
     kwargs = {'num_workers': 1, 'pin_memory': True} if torch.cuda.is_available() else {}
 
-    speakers = args.speakers.split()
+    speakers = args.speakers.split('_')
 
     if args.dataset == 'Arctic':
         args.model_dir = './exp/arctic/model/{0}/model_{1}'.format(args.model, '_'.join(speakers))

@@ -20,7 +20,7 @@ def save_pitch_model(model, filename):
     folder = os.path.dirname(filename)
     if not os.path.exists(folder):
         os.makedirs(folder)
-    filename = os.path.join(folder, filename)
+    # filename = os.path.join(folder, filename)
     with open(filename, 'wb') as f:
         pickle.dump(model, f)
 
